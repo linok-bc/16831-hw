@@ -172,20 +172,23 @@ class PGAgent(BaseAgent):
         """
 
         # TODO: create discounted_returns
-        raise NotImplementedError
-
-        return discounted_returns
+        discount_factors = self.gamma ** np.arange(0, rewards.shape[0], 1)
+        total_discounted_reward = np.sum(discount_factors * rewards)
+        return np.full(shape=rewards.shape, fill_value=total_discounted_reward)
 
     def _discounted_cumsum(self, rewards):
         """
             Helper function which
             -takes a list of rewards {r_0, r_1, ..., r_t', ... r_T},
-            -and returns an array where the entry in each index t' is sum_{t'=t}^T gamma^(t'-t) * r_{t'}
+            -and returns an array where the entry in each index t is sum_{t'=t}^T gamma^(t'-t) * r_{t'}
         """
 
         # TODO: create `discounted_cumsums`
         # HINT: it is possible to write a vectorized solution, but a solution
-            # using a for loop is also fine
-        raise NotImplementedError
+        # using a for loop is also fine
+        T = rewards.shape[0]
+        _x, _y = np.meshgrid(np.arange(T), np.arange(T))
+        gamma_matrix = np.triu(self.gamma ** (_x - _y))
+        discounted_cumsums = gamma_matrix @ rewards
 
         return discounted_cumsums
