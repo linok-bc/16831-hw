@@ -18,6 +18,7 @@ class PGAgent(BaseAgent):
         self.nn_baseline = self.agent_params['nn_baseline']
         self.reward_to_go = self.agent_params['reward_to_go']
         self.gae_lambda = self.agent_params['gae_lambda']
+        self.epsilon = 1e-8
 
         # actor/policy
         self.actor = MLPPolicyPG(
@@ -47,7 +48,9 @@ class PGAgent(BaseAgent):
         # HINT2: look at the MLPPolicyPG class for how to update the policy
             # and obtain a train_log
 
-        raise NotImplementedError
+        q_vals = self.calculate_q_vals(rewards_list)
+        advantages = self.estimate_advantage(observations, rewards_list, q_vals, terminals)
+        train_log = self.actor.update(observations, actions, advantages, q_values=q_vals)
 
         return train_log
 
@@ -74,15 +77,14 @@ class PGAgent(BaseAgent):
         # ordering as observations, actions, etc.
 
         if not self.reward_to_go:
-            #use the whole traj for each timestep
-            raise NotImplementedError
+            q_values = [self._discounted_return(rewards) for rewards in rewards_list]
 
         # Case 2: reward-to-go PG
         # Estimate Q^{pi}(s_t, a_t) by the discounted sum of rewards starting from t
-        else:
-            raise NotImplementedError
+        else:            
+            q_values = [self._discounted_cumsum(rewards) for rewards in rewards_list]
 
-        return q_values  # return an array
+        return np.concatenate(q_values)  # return an array
 
     def estimate_advantage(self, obs, rewards_list, q_values, terminals):
 
@@ -101,9 +103,7 @@ class PGAgent(BaseAgent):
             ## TODO: values were trained with standardized q_values, so ensure
                 ## that the predictions have the same mean and standard deviation as
                 ## the current batch of q_values
-
-            raise NotImplementedError
-            values = TODO
+            values = values_normalized * q_values.std() + q_values.mean()
 
             if self.gae_lambda is not None:
                 ## append a dummy T+1 value for simpler recursive calculation
@@ -125,7 +125,11 @@ class PGAgent(BaseAgent):
                         ## 0 otherwise.
                     ## HINT 2: self.gae_lambda is the lambda value in the
                         ## GAE formula
-                    raise NotImplementedError
+                    if terminals[i]:
+                        advantages[i] = rewards[i] - values[i]
+                    else:
+                        delta = rewards[i] + self.gamma * values[i + 1] - values[i]
+                        advantages[i] = delta + self.gamma * self.gae_lambda * advantages[i + 1]
 
                 # remove dummy advantage
                 advantages = advantages[:-1]
@@ -133,7 +137,7 @@ class PGAgent(BaseAgent):
             else:
                 ## TODO: compute advantage estimates using q_values, and values as baselines
                 # raise NotImplementedError
-                advantages = TODO
+                advantages = q_values - values
 
         # Else, just set the advantage to [Q]
         else:
@@ -144,8 +148,7 @@ class PGAgent(BaseAgent):
             ## TODO: standardize the advantages to have a mean of zero
             ## and a standard deviation of one
 
-            raise NotImplementedError
-            advantages = TODO
+            advantages = (advantages - advantages.mean()) / (advantages.std() + self.epsilon)
 
         return advantages
 

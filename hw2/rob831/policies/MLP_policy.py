@@ -95,7 +95,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         # TODO return the action that the policy prescribes
         observation = ptu.from_numpy(observation)
         distribution = self.forward(observation)
-        action = distribution.mean
+        action = distribution.sample()
         action = ptu.to_numpy(action)
         return action
 
@@ -109,7 +109,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
     # through it. For example, you can return a torch.FloatTensor. You can also
     # return more flexible objects, such as a
     # `torch.distributions.Distribution` object. It's up to you!
-    def forward(self, observation: torch.FloatTensor) -> Any:
+    def forward(self, observation: torch.FloatTensor):
         if self.discrete:
             return torch.distributions.categorical.Categorical(logits=self.logits_na(observation))
         else:
@@ -123,6 +123,7 @@ class MLPPolicyPG(MLPPolicy):
 
         super().__init__(ac_dim, ob_dim, n_layers, size, **kwargs)
         self.baseline_loss = nn.MSELoss()
+        self.epsilon = 1e-8
 
     def update(self, observations, actions, advantages, q_values=None):
         observations = ptu.from_numpy(observations)
@@ -139,7 +140,15 @@ class MLPPolicyPG(MLPPolicy):
         # HINT4: use self.optimizer to optimize the loss. Remember to
             # 'zero_grad' first
 
-        raise NotImplementedError
+        if self.discrete:
+            log_probs = self.forward(observations).log_prob(actions.long())
+        else:
+            log_probs = self.forward(observations).log_prob(actions).sum(dim=-1)
+        policy_loss =  -1 * (log_probs * advantages).mean()
+
+        self.optimizer.zero_grad()
+        policy_loss.backward()
+        self.optimizer.step()
 
         if self.nn_baseline:
             ## TODO: update the neural network baseline using the q_values as
@@ -150,7 +159,14 @@ class MLPPolicyPG(MLPPolicy):
                 ## updating the baseline. Remember to 'zero_grad' first
             ## HINT2: You will need to convert the targets into a tensor using
                 ## ptu.from_numpy before using it in the loss
-            raise NotImplementedError
+            targets = (q_values - q_values.mean()) / (q_values.std() + self.epsilon)
+            targets = ptu.from_numpy(targets)
+            pred = self.baseline(observations).flatten()
+            loss = self.baseline_loss(pred, targets)
+            self.baseline_optimizer.zero_grad()
+            loss.backward()
+            self.baseline_optimizer.step()
+
 
         train_log = {
             'Training Loss': ptu.to_numpy(policy_loss),

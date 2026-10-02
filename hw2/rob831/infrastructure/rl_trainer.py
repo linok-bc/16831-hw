@@ -174,7 +174,7 @@ class RL_Trainer(object):
         # HINT: depending on if it's the first iteration or not, decide whether to either
         # (1) load the data. In this case you can directly return as follows
         # ``` return loaded_paths, 0, None ```
-        if itr == 0:
+        if itr == 0 and load_initial_expertdata is not None:
             with open(load_initial_expertdata, 'rb') as fp:
                 return pickle.load(fp), 0, None
 
