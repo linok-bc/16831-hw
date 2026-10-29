@@ -87,4 +87,19 @@ class BootstrappedContinuousCritic(nn.Module, BaseCritic):
         # HINT: make sure to squeeze the output of the critic_network to ensure
         #       that its dimensions match the reward
 
+        ob_no = ptu.from_numpy(ob_no)
+        ac_na = ptu.from_numpy(ac_na)
+        next_ob_no = ptu.from_numpy(next_ob_no)
+        reward_n = ptu.from_numpy(reward_n)
+        terminal_n = ptu.from_numpy(terminal_n)
+
+        for i in range(self.num_target_updates):
+            target = reward_n + self.gamma * self.critic_network(next_ob_no).squeeze(-1).detach() * (1-terminal_n)
+            for j in range(self.num_grad_steps_per_target_update):
+                pred = self.critic_network(ob_no).squeeze(-1)
+                loss = self.loss(pred, target)
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
         return loss.item()
